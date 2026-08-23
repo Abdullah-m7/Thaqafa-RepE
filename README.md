@@ -377,51 +377,73 @@ Every figure above is asserted against the committed CSVs by
 `tests/test_readme_numbers.py`, so the table cannot drift from the artefacts
 it summarises.
 
-### The readability column does not survive a tighter contrast
+### What the probe scores actually rest on
 
 **This is the most important result in the repository, and it revises the
-table above.**
+table above — and corrects an earlier version of this section.**
 
 Extraction subtracts the mean of the contrasts from the mean of the exemplars,
 so whatever the two sets share cancels and whatever is unique to one side
 survives. The dataset's exemplars and contrasts share about 11% of their
-English vocabulary — they are not minimal pairs, and a probe trained on them
-may be separating **subject matter** rather than the concept.
+English vocabulary — they are not minimal pairs.
 
-[`results/pair_tightness_qwen/`](results/pair_tightness_qwen/) tests that by
-intervention rather than correlation. The exemplars are held fixed and only the
-negative side changes, across three levels of tightness, on Qwen2.5-0.5B:
+[`results/pair_tightness_qwen/`](results/pair_tightness_qwen/) holds the
+exemplars fixed and varies only the negative side, on Qwen2.5-0.5B, in English:
 
-| Contrast set | Vocabulary overlap | Mean balanced accuracy | Significant (p < 0.05) |
+| Contrast set | Overlap | Mean balanced accuracy | Significant (p < 0.05) |
 | --- | --- | --- | --- |
 | Generic neutral bank | 4% | 1.000 | 12 / 12 |
 | The dataset's own contrasts | 11% | 0.849 | 7 / 12 |
-| Contrasts rewritten to be minimal | 52% | **0.562** | **0 / 12** |
+| Rewritten to be minimal | 52% | 0.563 | 0 / 12 |
 
-Every one of the twelve concepts falls, monotonically. With a genuinely minimal
-contrast, **not one is linearly readable above chance.** The neutral-bank row is
-the control that makes this readable: the pipeline finds a perfect separation
-when one is there, so 0.562 is not the pipeline failing to measure.
+Every concept falls, monotonically. **The reported readability rests
+substantially on the exemplars and contrasts differing in subject matter.**
 
-What this does and does not say:
+#### But the floor is not evidence of absence
 
-- It does **not** say these concepts have no linear representation. Twelve
-  samples per probe is very little power, and the tightened contrasts are one
-  author's English, not an established stimulus set.
-- It does say the previously reported readability **is not robust** to
-  removing the topic difference, which is the thing the contrast exists to
-  remove.
-- The causal results are less exposed — they inject a direction and read it
-  back against a matched-norm random control — but the probe reading them was
-  trained on the same loose pairs.
-- The tightened contrasts are **English only** and live under
-  `data/experiments/`, not in the dataset. Writing a minimal pair is
-  experimental design; judging Arabic cultural content is not something this
-  repository's tooling can do for itself.
+The same run probes properties a language model is known to encode, written as
+pairs at least as tight as the concept ones:
 
-So the first thing native-speaker review should fix is not approval of the
-Arabic exemplars — it is **rewriting the Arabic contrasts to be minimal**: same
-frame, same topic, one thing changed.
+| Control | Overlap | Samples | Balanced accuracy | p |
+| --- | --- | --- | --- | --- |
+| `person` (I / he) | 100% | 12 | 1.000 | 0.015 |
+| `negation` (did / did not) | 90% | 12 | 1.000 | 0.015 |
+| `tense` (past / future) | 50% | 12 | 1.000 | 0.015 |
+| `valence` (delighted / disappointed) | 66% | 12 | **0.500** | 0.512 |
+| `valence_large` — *the same contrast* | 58% | **24** | **0.883** | 0.015 |
+
+Three structural controls hit ceiling at overlaps *higher* than the concept
+pairs, so tightening does not break a probe. But valence — the control shaped
+most like a cultural concept, one evaluative word in an otherwise identical
+frame — reads at exactly chance with twelve samples and at 0.883 with
+twenty-four. **Same sentences, same method, same model.**
+
+So the honest conclusion is not "these concepts are not linearly represented".
+It is:
+
+> At twelve samples per concept, this design detects a difference in subject
+> matter and does not detect a single-word semantic difference. Once the topic
+> difference is removed, the concepts fall to a floor that a known-encoded
+> property also falls to at the same sample size.
+
+The 0.563 is the design's detection floor, not a measurement of the concepts.
+
+#### What this asks of the dataset
+
+Two things, in this order:
+
+1. **More exemplars per concept.** Twelve samples is below what this design
+   needs. The valence control puts the working threshold between 12 and 24.
+2. **Contrasts that are genuinely minimal** — same frame, same topic, one thing
+   changed. Otherwise the score returns to measuring topic.
+
+The tightened contrasts and controls are **English only** and live under
+`data/experiments/`, not in the dataset. Writing a minimal pair is experimental
+design; judging Arabic cultural content is what native-speaker review is for.
+
+The causal results are less exposed — they inject a direction and read it back
+against a matched-norm random control — but the probes reading them were
+trained on the same loose pairs and the same twelve samples.
 
 ```bash
 python scripts/build_review_sheet.py     # docs/review_sheet.md, per concept

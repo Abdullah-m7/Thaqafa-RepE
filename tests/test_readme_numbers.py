@@ -14,6 +14,7 @@ from __future__ import annotations
 import csv
 import re
 import subprocess
+from decimal import ROUND_HALF_UP, Decimal
 from pathlib import Path
 
 import pytest
@@ -128,7 +129,7 @@ class TestReadmeMatchesArtefacts:
         best = _best_layer_rows(RESULTS / run)
         mean = sum(float(row["probe_score"]) for row in best) / len(best)
 
-        assert _readme_row(run)[2] == f"{mean:.3f}"
+        assert _readme_row(run)[2] == _fmt3(mean)
 
     def test_amplification_counts(self, run: str) -> None:
         """Points where adding the direction beat a matched-norm random one."""
@@ -177,3 +178,140 @@ def test_the_readme_states_the_probe_threshold_it_counts_by() -> None:
     """The causal fractions are meaningless without it."""
     text = README.read_text(encoding="utf-8")
     assert re.search(r"0\.70 balanced accuracy", text)
+
+
+TIGHTNESS_RUN = RESULTS / "pair_tightness_qwen"
+"""The pair-tightness experiment, whose two tables are the repository's
+most consequential claim and so the ones least safe to leave unpinned."""
+
+CONDITION_LABELS = {
+    "neutral": "Generic neutral bank",
+    "shipped": "The dataset's own contrasts",
+    "tight": "Rewritten to be minimal",
+}
+"""README row label for each condition in ``tightness.csv``."""
+
+
+def _fmt3(value: float) -> str:
+    """Format to three decimals, rounding halves up.
+
+    The tight condition's mean is exactly 0.5625, so ``format`` would return
+    "0.562" or "0.563" depending on which way the float accumulation landed -
+    a table cell that changes with summation order is not a pinned number.
+    """
+    return str(Decimal(repr(value)).quantize(Decimal("0.001"), rounding=ROUND_HALF_UP))
+
+
+def _labelled_row(label: str) -> list[str]:
+    """Return the cells of the README table row named by ``label``.
+
+    A row is named by ``label`` when its first cell is exactly that, or is
+    that followed by a space and a gloss - ``valence`` names the row
+    "`valence` (delighted / disappointed)". Requiring the space is what keeps
+    ``valence`` from also naming the ``valence_large`` row, whose two figures
+    carry the opposite half of the argument.
+
+    Args:
+        label: The row's name, without markdown emphasis or code markers.
+
+    Returns:
+        The row's cells, stripped of whitespace and markdown emphasis.
+
+    Raises:
+        AssertionError: If no row, or more than one row, is so named.
+    """
+    matches = []
+    for line in README.read_text(encoding="utf-8").splitlines():
+        if not line.startswith("|"):
+            continue
+        cells = [
+            cell.strip().replace("*", "").replace("`", "") for cell in line.strip("|").split("|")
+        ]
+        if cells[0] == label or cells[0].startswith(f"{label} "):
+            matches.append(cells)
+    assert matches, f"No README table row named {label!r}"
+    assert len(matches) == 1, f"{label!r} names {len(matches)} README rows, so it names none"
+    return matches[0]
+
+
+@pytest.mark.parametrize("condition", sorted(CONDITION_LABELS))
+class TestTightnessTable:
+    """Each contrast-set row, against ``tightness.csv``."""
+
+    @staticmethod
+    def _rows_for(condition: str) -> list[dict[str, str]]:
+        rows = [r for r in _rows(TIGHTNESS_RUN / "tightness.csv") if r["condition"] == condition]
+        assert rows, f"No {condition!r} rows in tightness.csv"
+        return rows
+
+    def test_vocabulary_overlap(self, condition: str) -> None:
+        """The overlap that makes the monotone fall interpretable."""
+        rows = self._rows_for(condition)
+        mean = sum(float(r["vocabulary_overlap"]) for r in rows) / len(rows)
+
+        assert _labelled_row(CONDITION_LABELS[condition])[1] == f"{round(mean * 100)}%"
+
+    def test_mean_balanced_accuracy(self, condition: str) -> None:
+        """The fall itself."""
+        rows = self._rows_for(condition)
+        mean = sum(float(r["probe_score"]) for r in rows) / len(rows)
+
+        assert _labelled_row(CONDITION_LABELS[condition])[2] == _fmt3(mean)
+
+    def test_significant_count(self, condition: str) -> None:
+        """How many concepts survive a permutation test in this condition."""
+        rows = self._rows_for(condition)
+        significant = sum(1 for r in rows if float(r["p_value"]) < 0.05)
+
+        assert _labelled_row(CONDITION_LABELS[condition])[3] == f"{significant} / {len(rows)}"
+
+
+def _control_ids() -> list[str]:
+    """Return the positive controls actually present in the committed CSV."""
+    return [row["concept_id"] for row in _rows(TIGHTNESS_RUN / "positive_controls.csv")]
+
+
+@pytest.mark.parametrize("control", _control_ids())
+class TestPositiveControlTable:
+    """Each control row, against ``positive_controls.csv``.
+
+    These are what separate "the concepts are not represented" from "this
+    design cannot see a one-word difference at twelve samples", so a drifted
+    cell here would misstate the repository's conclusion.
+    """
+
+    @staticmethod
+    def _row_for(control: str) -> dict[str, str]:
+        for row in _rows(TIGHTNESS_RUN / "positive_controls.csv"):
+            if row["concept_id"] == control:
+                return row
+        raise AssertionError(f"No {control!r} row in positive_controls.csv")
+
+    def test_vocabulary_overlap(self, control: str) -> None:
+        row = self._row_for(control)
+
+        assert _labelled_row(control)[1] == f"{round(float(row['vocabulary_overlap']) * 100)}%"
+
+    def test_sample_count(self, control: str) -> None:
+        """The column the power argument turns on: 12 versus 24."""
+        row = self._row_for(control)
+        samples = int(row["n_positive"]) + int(row["n_negative"])
+
+        assert _labelled_row(control)[2] == str(samples)
+
+    def test_balanced_accuracy(self, control: str) -> None:
+        row = self._row_for(control)
+
+        assert _labelled_row(control)[3] == _fmt3(float(row["probe_score"]))
+
+    def test_p_value(self, control: str) -> None:
+        row = self._row_for(control)
+
+        assert _labelled_row(control)[4] == _fmt3(float(row["p_value"]))
+
+
+def test_the_readme_reports_every_committed_positive_control() -> None:
+    """A control run but not shown is a control the reader cannot weigh."""
+    assert _control_ids(), "positive_controls.csv is empty"
+    for control in _control_ids():
+        _labelled_row(control)
