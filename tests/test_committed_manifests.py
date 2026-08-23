@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 import subprocess
 from pathlib import Path
 
@@ -38,6 +39,17 @@ def _tracked_manifests() -> list[str]:
         check=True,
     )
     return sorted(listed.stdout.split())
+
+
+def _is_shallow() -> bool:
+    """Whether this checkout was cloned without full history."""
+    answer = subprocess.run(
+        ["git", "rev-parse", "--is-shallow-repository"],
+        cwd=PROJECT_ROOT,
+        capture_output=True,
+        text=True,
+    )
+    return answer.stdout.strip() == "true"
 
 
 def _digest(path: Path) -> str:
@@ -94,8 +106,25 @@ class TestCommittedManifest:
         assert git["dirty"] is False, f"{manifest_path} records an uncommitted working tree"
         assert git["untracked"] == 0, f"{manifest_path} records untracked files"
 
+    def test_the_recorded_commit_is_a_full_sha(self, manifest_path: str) -> None:
+        """An abbreviated or truncated sha stops identifying a commit as history grows."""
+        commit = self._load(manifest_path)["git"]["commit"]
+
+        assert re.fullmatch(
+            r"[0-9a-f]{40}", commit
+        ), f"{manifest_path} records {commit!r}, which is not a full commit sha"
+
     def test_the_recorded_commit_exists(self, manifest_path: str) -> None:
-        """A commit nobody can check out is not provenance."""
+        """A commit nobody can check out is not provenance.
+
+        Skipped on a shallow clone, which is what ``actions/checkout`` makes by
+        default: there, an older commit is missing because the history was never
+        fetched, so its absence says nothing about the manifest. Asserting it
+        anyway failed CI on four manifests that were perfectly valid.
+        """
+        if _is_shallow():
+            pytest.skip("shallow clone: absent history is not a missing commit")
+
         commit = self._load(manifest_path)["git"]["commit"]
         found = subprocess.run(
             ["git", "cat-file", "-e", f"{commit}^{{commit}}"],
