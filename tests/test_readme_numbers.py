@@ -89,10 +89,30 @@ def _committed_runs() -> list[str]:
     return sorted({line.split("/")[1] for line in listing.stdout.split() if "/" in line})
 
 
+def _pilot_runs(runs: list[str]) -> list[str]:
+    """Narrow to the runs the summary table actually describes.
+
+    ``results/`` holds more than one kind of experiment. A pilot run produces
+    a layer sweep and the causal CSVs, and has a row in the README's table; a
+    standalone experiment such as the pair-tightness sweep produces neither and
+    is written up in prose instead. Keying off the directory alone treated the
+    second kind as a broken pilot, which is how this test failed the first time
+    a different experiment was committed.
+
+    Args:
+        runs: Every committed run directory.
+
+    Returns:
+        Those carrying a ``layer_sweep.csv``.
+    """
+    return [run for run in runs if (RESULTS / run / "layer_sweep.csv").exists()]
+
+
 RUNS = _committed_runs()
+PILOT_RUNS = _pilot_runs(RUNS)
 
 
-@pytest.mark.parametrize("run", RUNS)
+@pytest.mark.parametrize("run", PILOT_RUNS)
 class TestReadmeMatchesArtefacts:
     """Every cell in the summary table, against the CSV behind it."""
 
@@ -139,6 +159,18 @@ def test_every_committed_run_appears_in_the_readme() -> None:
 def test_at_least_one_run_is_committed() -> None:
     """Guards the parametrisation: an empty RUNS would silently pass everything."""
     assert RUNS
+    assert PILOT_RUNS
+
+
+def test_every_experiment_that_is_not_a_pilot_is_still_written_up() -> None:
+    """A standalone experiment has no table row, so prose is what covers it.
+
+    Without this, narrowing the table's parametrisation would have quietly
+    dropped such a run from every check the README makes.
+    """
+    text = README.read_text(encoding="utf-8")
+    for run in set(RUNS) - set(PILOT_RUNS):
+        assert f"results/{run}/" in text, f"{run} is committed but not described"
 
 
 def test_the_readme_states_the_probe_threshold_it_counts_by() -> None:
