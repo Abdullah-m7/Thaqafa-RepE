@@ -1,10 +1,10 @@
 {
   "schema_version": "1.0",
   "experiment": "pair_tightness_qwen",
-  "timestamp_utc": "2026-08-23T19:04:28+00:00",
+  "timestamp_utc": "2026-08-23T21:54:34+00:00",
   "git": {
-    "commit": "e065a69b48ef4b03aa38490cebde165d053cd266",
-    "branch": "feat/pair-tightness",
+    "commit": "a72277af86029e5b6f49d8539ac6823abb78cd4b",
+    "branch": "feat/positive-controls",
     "dirty": false,
     "untracked": 0,
     "output_paths_changed": 0
@@ -52,6 +52,7 @@
     ],
     "language": "en",
     "probe_permutations": 200,
-    "tight_contrasts_sha256": "ff59f773741d4c946dab16566ef07d10a9c18f21895784931932b6a7eaaa608e"
+    "tight_contrasts_sha256": "ff59f773741d4c946dab16566ef07d10a9c18f21895784931932b6a7eaaa608e",
+    "positive_controls_sha256": "64e2eccaaf363b166b58e3565e9b4e240e9fbeae54815d198c330fd50df566ac"
   }
 }
