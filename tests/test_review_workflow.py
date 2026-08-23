@@ -153,6 +153,19 @@ class TestChecker:
         warnings = check_dataset.check_minimal_pairs(leaky, "ar")
         assert any("own name" in warning for warning in warnings)
 
+    def test_a_function_word_in_a_gloss_is_not_a_leak(self) -> None:
+        """ "Modesty and Propriety" contributes "and", which matches anything.
+
+        Only the content words of a concept's name can show that the concept
+        itself sits on both sides of the pair.
+        """
+        entry = concept(
+            concept_en="Modesty and Propriety",
+            contrast_ar=["استقبل ضيفه وجاره في بيته"],
+        )
+        warnings = check_dataset.check_minimal_pairs(entry, "en")
+        assert not any("own name" in warning for warning in warnings)
+
     def test_flags_an_uneven_bilingual_split(self) -> None:
         uneven = concept(examples_en=["only one"])
         assert any("against" in warning for warning in check_dataset.check_concept(uneven))
