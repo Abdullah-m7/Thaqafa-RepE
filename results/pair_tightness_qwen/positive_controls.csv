@@ -1,0 +1,5 @@
+concept_id,condition,vocabulary_overlap,best_layer,probe_score,p_value,n_positive,n_negative
+valence,positive_control,0.658537,8,0.5,0.512438,6,6
+negation,positive_control,0.903226,0,1.0,0.014925,6,6
+tense,positive_control,0.5,3,1.0,0.014925,6,6
+person,positive_control,1.0,0,1.0,0.014925,6,6
