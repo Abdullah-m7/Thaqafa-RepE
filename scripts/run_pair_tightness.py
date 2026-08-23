@@ -18,6 +18,15 @@ fixed and only the negative side changes, across three levels of tightness:
 If accuracy falls as the pair tightens, the score was partly separating subject
 matter, and the amount it falls is how much.
 
+A fall alone would not settle it, though. Tightening could break a probe for
+reasons of its own - near-duplicate sentences, or contrasts too ambiguous to
+label. So the run also probes a set of **positive controls**: properties every
+language model is known to encode linearly - valence, negation, tense, person -
+written as pairs at least as tight as the concept ones. If those come out at
+ceiling while the concepts come out at chance, tightening is not what broke the
+probe. If they fall too, the tightening is the problem and the concept result
+means nothing.
+
 English only, deliberately. Writing a minimal pair is a question of
 experimental design, and English is a language this repository's authors can
 write minimal pairs in; the Arabic side is what native-speaker review is for,
@@ -55,6 +64,7 @@ from src.utils.provenance import (  # noqa: E402
 logger = logging.getLogger("tightness")
 
 TIGHT_CONTRASTS = PROJECT_ROOT / "data" / "experiments" / "tight_contrasts_en.jsonl"
+POSITIVE_CONTROLS = PROJECT_ROOT / "data" / "experiments" / "positive_controls_en.jsonl"
 DEFAULT_OUTPUT_DIR = "results/pair_tightness"
 DEFAULT_SEED = 42
 CONDITIONS = ("neutral", "shipped", "tight")
@@ -82,6 +92,33 @@ def load_tight_contrasts(path: Path = TIGHT_CONTRASTS) -> dict[str, list[str]]:
     if not contrasts:
         raise ValueError(f"No tightened contrasts in {path}")
     return contrasts
+
+
+def load_positive_controls(path: Path = POSITIVE_CONTROLS) -> list[dict[str, Any]]:
+    """Read the positive controls.
+
+    These are the answer to "did tightening break the probe?". Each is a
+    property a language model is known to encode - valence, negation, tense,
+    person - written as a pair at least as tight as the concept pairs, so a
+    ceiling score on them and a chance score on the concepts cannot both be
+    explained by the tightening.
+
+    Args:
+        path: JSONL file of control definitions.
+
+    Returns:
+        The controls, in file order.
+
+    Raises:
+        ValueError: If the file holds no entries.
+    """
+    controls = []
+    for line in path.read_text(encoding="utf-8").splitlines():
+        if line.strip():
+            controls.append(json.loads(line))
+    if not controls:
+        raise ValueError(f"No positive controls in {path}")
+    return controls
 
 
 def vocabulary_overlap(exemplars: list[str], contrasts: list[str]) -> float:
@@ -201,6 +238,7 @@ def main(argv: list[str] | None = None) -> int:
             "language": "en",
             "probe_permutations": args.permutations,
             "tight_contrasts_sha256": file_digest(TIGHT_CONTRASTS),
+            "positive_controls_sha256": file_digest(POSITIVE_CONTROLS),
         },
     )
     (output_dir / "manifest.json").write_text(
@@ -242,6 +280,46 @@ def main(argv: list[str] | None = None) -> int:
                 row["probe_score"],
                 row["p_value"],
             )
+
+    control_rows: list[dict[str, Any]] = []
+    for control in load_positive_controls():
+        row = sweep_condition(
+            engine,
+            str(control["control_id"]),
+            [str(text) for text in control["positive_en"]],
+            [str(text) for text in control["negative_en"]],
+            args.permutations,
+            args.seed,
+        )
+        row["condition"] = "positive_control"
+        control_rows.append(row)
+        logger.info(
+            "control %s: overlap %.0f%% -> layer %d, %.3f (p=%s)",
+            row["concept_id"],
+            100 * float(row["vocabulary_overlap"]),
+            row["best_layer"],
+            row["probe_score"],
+            row["p_value"],
+        )
+
+    controls_path = output_dir / "positive_controls.csv"
+    with open(controls_path, "w", newline="", encoding="utf-8") as handle:
+        writer = csv.DictWriter(
+            handle,
+            fieldnames=[
+                "concept_id",
+                "condition",
+                "vocabulary_overlap",
+                "best_layer",
+                "probe_score",
+                "p_value",
+                "n_positive",
+                "n_negative",
+            ],
+        )
+        writer.writeheader()
+        writer.writerows(control_rows)
+    logger.info("wrote %s (%d rows)", controls_path, len(control_rows))
 
     path = output_dir / "tightness.csv"
     with open(path, "w", newline="", encoding="utf-8") as handle:
