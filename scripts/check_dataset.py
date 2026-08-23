@@ -49,6 +49,16 @@ MIN_SHARED_FRACTION = 0.25
 RARE_WORD_MAX_USES = 1
 """A content word this rare on one side is the kind of thing a pair should cancel."""
 
+FUNCTION_WORDS = frozenset(
+    {"and", "the", "for", "with", "from", "into", "that", "this", "his", "her", "its"}
+)
+"""Excluded when matching a concept's *name* against the contrast side.
+
+A gloss like "Modesty and Propriety" contributes "and", which then matches
+almost any sentence and reports a leak that is not one. Only the content words
+of a name can indicate that the concept itself appears on both sides.
+"""
+
 
 def _words(sentences: list[str]) -> Counter[str]:
     """Count word occurrences across sentences, in either script."""
@@ -90,7 +100,7 @@ def check_minimal_pairs(concept: CulturalConcept, language: str) -> list[str]:
         )
 
     # A word carrying the concept should not appear on the contrast side at all.
-    concept_words = set(_words([concept.concept_ar, concept.concept_en]))
+    concept_words = set(_words([concept.concept_ar, concept.concept_en])) - FUNCTION_WORDS
     leaked = sorted(word for word in concept_words if word in contrast_words)
     if leaked:
         warnings.append(

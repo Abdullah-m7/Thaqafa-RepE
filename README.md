@@ -377,29 +377,57 @@ Every figure above is asserted against the committed CSVs by
 `tests/test_readme_numbers.py`, so the table cannot drift from the artefacts
 it summarises.
 
-### The largest caveat on the readability column
+### The readability column does not survive a tighter contrast
 
-The exemplars and their contrasts share very little vocabulary — 0–18% in
-Arabic, by `scripts/check_dataset.py`. Extraction subtracts one mean from the
-other, so what the two sets share cancels and what is unique to one side
-survives. Pairs this loose mean a probe may be separating **subject matter**
-rather than the concept.
+**This is the most important result in the repository, and it revises the
+table above.**
 
-Across the twelve concepts, tighter pairs score *worse*: the correlation
-between Arabic vocabulary overlap and Qwen probe accuracy is **−0.61**.
-`wasta_001` has by far the tightest pair (18%, against 0–5% for everything
-else) and is the only concept that fails to reach significance. That is twelve
-points and a correlation, not a demonstration — but it points the same way the
-mechanism predicts, and it is the first thing native-speaker review should fix.
+Extraction subtracts the mean of the contrasts from the mean of the exemplars,
+so whatever the two sets share cancels and whatever is unique to one side
+survives. The dataset's exemplars and contrasts share about 11% of their
+English vocabulary — they are not minimal pairs, and a probe trained on them
+may be separating **subject matter** rather than the concept.
 
-The causal results are less exposed to this: they inject a direction and read
-it back against a matched-norm random control, so a direction that is mostly
-topic still has to beat noise on the concept's own probe. But the probe it is
-read by was trained on the same loose pairs.
+[`results/pair_tightness_qwen/`](results/pair_tightness_qwen/) tests that by
+intervention rather than correlation. The exemplars are held fixed and only the
+negative side changes, across three levels of tightness, on Qwen2.5-0.5B:
 
-Run `python scripts/build_review_sheet.py` to generate
-[`docs/review_sheet.md`](docs/review_sheet.md), which lays each concept out for
-a native speaker with the specific question to answer beside each block.
+| Contrast set | Vocabulary overlap | Mean balanced accuracy | Significant (p < 0.05) |
+| --- | --- | --- | --- |
+| Generic neutral bank | 4% | 1.000 | 12 / 12 |
+| The dataset's own contrasts | 11% | 0.849 | 7 / 12 |
+| Contrasts rewritten to be minimal | 52% | **0.562** | **0 / 12** |
+
+Every one of the twelve concepts falls, monotonically. With a genuinely minimal
+contrast, **not one is linearly readable above chance.** The neutral-bank row is
+the control that makes this readable: the pipeline finds a perfect separation
+when one is there, so 0.562 is not the pipeline failing to measure.
+
+What this does and does not say:
+
+- It does **not** say these concepts have no linear representation. Twelve
+  samples per probe is very little power, and the tightened contrasts are one
+  author's English, not an established stimulus set.
+- It does say the previously reported readability **is not robust** to
+  removing the topic difference, which is the thing the contrast exists to
+  remove.
+- The causal results are less exposed — they inject a direction and read it
+  back against a matched-norm random control — but the probe reading them was
+  trained on the same loose pairs.
+- The tightened contrasts are **English only** and live under
+  `data/experiments/`, not in the dataset. Writing a minimal pair is
+  experimental design; judging Arabic cultural content is not something this
+  repository's tooling can do for itself.
+
+So the first thing native-speaker review should fix is not approval of the
+Arabic exemplars — it is **rewriting the Arabic contrasts to be minimal**: same
+frame, same topic, one thing changed.
+
+```bash
+python scripts/build_review_sheet.py     # docs/review_sheet.md, per concept
+python scripts/check_dataset.py          # overlap per entry, and what leaks
+python scripts/run_pair_tightness.py     # re-run the experiment above
+```
 
 The last column counts only the read-back points measured through a probe that
 can actually read its concept (balanced accuracy ≥ 0.70); the rest are reported

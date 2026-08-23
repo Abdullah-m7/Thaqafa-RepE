@@ -1,0 +1,57 @@
+{
+  "schema_version": "1.0",
+  "experiment": "pair_tightness_qwen",
+  "timestamp_utc": "2026-08-23T19:04:28+00:00",
+  "git": {
+    "commit": "e065a69b48ef4b03aa38490cebde165d053cd266",
+    "branch": "feat/pair-tightness",
+    "dirty": false,
+    "untracked": 0,
+    "output_paths_changed": 0
+  },
+  "model": {
+    "name": "Qwen/Qwen2.5-0.5B",
+    "device": "cpu",
+    "dtype": "float32"
+  },
+  "seed": 42,
+  "dataset": {
+    "path": "data/datasets/cultural_concepts.jsonl",
+    "sha256": "52a52e5705f38566c4fa38b835f9a22967aadeebba921f2e62304d8c424b5b32"
+  },
+  "concepts": [
+    "wasta_001",
+    "muruah_001",
+    "diyafa_001",
+    "karam_001",
+    "sharaf_001",
+    "sabr_001",
+    "silat_rahim_001",
+    "jiwar_001",
+    "shura_001",
+    "majlis_001",
+    "fazaa_001",
+    "hayaa_001"
+  ],
+  "environment": {
+    "python": "3.11.15",
+    "platform": "Linux-6.18.44-fc-v21-x86_64-with-glibc2.39",
+    "packages": {
+      "torch": "2.13.0",
+      "transformer-lens": "3.7.2",
+      "transformers": "5.15.0",
+      "scikit-learn": "1.9.0",
+      "numpy": "2.4.6"
+    }
+  },
+  "settings": {
+    "conditions": [
+      "neutral",
+      "shipped",
+      "tight"
+    ],
+    "language": "en",
+    "probe_permutations": 200,
+    "tight_contrasts_sha256": "ff59f773741d4c946dab16566ef07d10a9c18f21895784931932b6a7eaaa608e"
+  }
+}
